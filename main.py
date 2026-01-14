@@ -8,6 +8,7 @@ from src.planner import ActionPlanner
 from src.vision import VisionProcessor
 
 def main():
+
     """ Main CLI entry point"""
     parser = argparse.ArgumentParser(
         description='Generate robot action plans from commands',
@@ -30,6 +31,7 @@ Available mock scenes:
     parser.add_argument(
         'command',
         type=str,
+        nargs='?',
         help='Command (eg. "pick up the red block")'
     )
 
@@ -91,7 +93,12 @@ Available mock scenes:
             print(f' - {scene_name}')
         return 0
 
-    api_key = args.api_key or os.getenv('GROQ_API_KEY')
+    if not args.command:
+        parser.error('Command is required (unless using --list-scenes)')
+
+    # api_key = args.api_key or os.getenv('GROQ_API_KEY')
+    api_key = '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'
+
     if not api_key:
         print("ERROR: Groq API key required.", file=sys.stderr)
         print("Set GROQ_API_KEY environment variable or use --api-key", file=sys.stderr)
@@ -116,7 +123,7 @@ Available mock scenes:
 
         # convert to json
         if args.pretty:
-            json.output = plan.model_dump_json(indent=2)
+            json_output = plan.model_dump_json(indent=2)
         else:
             json_output = plan.model_dump_json()
 
