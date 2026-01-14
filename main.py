@@ -1,11 +1,11 @@
 import argparse
-import json
 import sys
 import os
 from pathlib import Path
 
 from src.planner import ActionPlanner
 from src.vision import VisionProcessor
+from src.config import groq_api_key, mock_mode
 
 def main():
 
@@ -88,7 +88,7 @@ Available mock scenes:
 
     if args.list_scenes:
         print('Available mock scenes:')
-        vision = VisionProcessor(mock_mode=True)
+        vision = VisionProcessor(mock_mode=mock_mode)
         for scene_name in vision.list_available_scenes():
             print(f' - {scene_name}')
         return 0
@@ -96,7 +96,6 @@ Available mock scenes:
     if not args.command:
         parser.error('Command is required (unless using --list-scenes)')
 
-    # api_key = args.api_key or os.getenv('GROQ_API_KEY')
     api_key = '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'
 
     if not api_key:
@@ -113,7 +112,7 @@ Available mock scenes:
             print("Processing...", file=sys.stderr)
 
         planner = ActionPlanner(
-            vision_mock_mode=True,
+            vision_mock_mode=mock_mode,
             llm_api_key=api_key,
             llm_model=args.model,
         )
