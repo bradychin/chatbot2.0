@@ -85,7 +85,7 @@ class LLMClient:
         response_text = response.choices[0].message.content
 
         # convert json to ActionPlan
-        return self._parse_response(response_text)
+        return self._parse_response(response_text, scene)
 
     def _create_system_prompt(self):
         """
