@@ -25,7 +25,7 @@ class Scene(BaseModel):
 # Commands the robot executes
 class RobotAction(BaseModel):
     """A single action for the robot to preform"""
-    type: Literal['move to', 'grasp', 'release', 'look_at'] = Field(..., description='Type of action')
+    type: Literal['move_to', 'grasp', 'release', 'look_at'] = Field(..., description='Type of action')
     target: str = Field(..., description='Object to act on')
     end_effector: str = Field(default='right hand', description='Which hand/gripper')
     position: Optional[Position] = Field(None, description='Target position if needed')
