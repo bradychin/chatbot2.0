@@ -1,0 +1,2 @@
+groq_api_key = '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'
+mock_mode = True
