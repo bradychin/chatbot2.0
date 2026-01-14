@@ -2,7 +2,6 @@ import json
 import os
 from typing import Optional
 from groq import Groq
-from pip._internal.resolution.resolvelib import provider
 
 from src.models import Command, Scene, ActionPlan, RobotAction, Position
 
@@ -99,6 +98,13 @@ class LLMClient:
 2. Generate a sequence of robot actions to accomplish the task
 3. Output ONLY valid JSON in this exact format:
 
+CRITICAL RULES:
+- You can ONLY interact with objects that exist in the provided scene
+- If the requested object does NOT exist in the scene, set confidence to 0.0 and explain in reasoning
+- NEVER make up or hallucinate objects that aren't listed in the scene
+- Use exact object names from the scene description
+
+OUTPUT FORMAT (JSON only):
 {
   "actions": [
     {
@@ -124,6 +130,7 @@ RULES:
 - For "pick up", use: move_to → grasp
 - For "put down", use: move_to → release
 - Always specify which hand to use
+- If object doesn't exist: confidence=0.0, empty actions list, explain reasoning
 - Keep reasoning brief (one sentence)
 - Output ONLY JSON, no other text 
         """
@@ -152,18 +159,23 @@ RULES:
                 for obj in scene.objects
             ]
         }
+        # create list of available object for emphasis
+        object_list = ", ".join([obj.name for obj in scene.objects])
         prompt = f""" COMMAND: {command.text}
         SCENE:
 {json.dumps(scene_dict, indent=2)}
+
+AVAILABLE OBJECTS IN SCENE: {object_list}
 
 Generate the action plan as JSON:
 """
         return prompt
 
-    def _parse_response(self, response_text: str) -> ActionPlan:
+    def _parse_response(self, response_text: str, scene: Scene) -> ActionPlan:
         """
         Parse LLM json respone into ActionPlan object
         :param response_text: json string from LLM
+        :param scene: Scene object for validation
         :return: ActionPlan object
         :raises ValueError: if response is invalid json or missing fields
         """
@@ -172,8 +184,15 @@ Generate the action plan as JSON:
         except json.decoder.JSONDecodeError as e:
             raise ValueError(f'LLM return invalid json: {e}')
 
+        # get available object names from scene
+        available_objects = {obj.name for obj in scene.objects}
         actions = []
         for action_data in data.get('actions', []):
+            # validate target is in scene
+            target = action_data['target']
+            if target not in available_objects:
+                print(f'Warning: Action references non-existent object: {target}')
+                continue
             # handle position
             position = None
             if action_data.get('position'):
