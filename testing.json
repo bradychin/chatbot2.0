@@ -1,0 +1,24 @@
+{
+  "actions": [
+    {
+      "type": "move_to",
+      "target": "red_block",
+      "end_effector": "right_hand",
+      "position": {
+        "x": 0.3,
+        "y": 0.2,
+        "z": 0.0
+      },
+      "parameters": {}
+    },
+    {
+      "type": "grasp",
+      "target": "red_block",
+      "end_effector": "right_hand",
+      "position": null,
+      "parameters": {}
+    }
+  ],
+  "confidence": 1.0,
+  "reasoning": "Object red_block exists in the scene."
+}
