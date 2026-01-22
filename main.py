@@ -9,22 +9,14 @@ from src.config import groq_api_key, mock_mode
 def print_banner():
     """Print welcome banner"""
     print("=" * 60)
-    print("  ROBOT COMMAND SYSTEM - Interactive Mode")
+    print("  ROBOT COMMAND SYSTEM")
     print("=" * 60)
-    print()
-
-def print_available_scenes(vision: VisionProcessor):
-    """Print available scenes"""
-    print('\nAvailable scenes:')
-    scenes = vision.list_available_scenes()
-    for scene in scenes:
-        print(f'    - {scene}')
     print()
 
 def print_plan_summary(plan):
     """Print summary of the plan"""
     print("\n" + "-" * 60)
-    print("GENERATED PLAN")
+    print("ACTIONS")
     print("-" * 60)
     print(f"Confidence: {plan.confidence:.2f}")
     if plan.reasoning:
@@ -38,14 +30,6 @@ def print_plan_summary(plan):
         print(f"  {i}. {action.type.upper()}: {action.target}{pos_str}")
         print(f"     Using: {action.end_effector}")
     print("-" * 60)
-
-def get_input(prompt: str, default: str = None) -> str:
-    """Get input from user"""
-    if default:
-        user_input = input(f'{prompt} [{default}]: ').strip()
-        return user_input if user_input else default
-    else:
-        return input(f'{prompt}: ').strip()
 
 def main():
     """Main function"""
@@ -65,16 +49,35 @@ def main():
         )
 
         print("System initialized successfully!")
-        print("\nCommands:")
-        print("  • Type a robot command (e.g., 'pick up the red block')")
-        print("  • Type 'scenes' to see available scenes")
-        print("  • Type 'help' for more information")
-        print("  • Type 'quit' or 'exit' to quit")
-        print()
 
-        current_scene = None
+        # List avialable scenes
+        scenes = vision.list_available_scenes()
+        print("Available scenes:")
+        for scene in scenes:
+            print(f"  {scene}")
+
+        # Have user pick scene
+        print()
+        choice = input('Pick a scene (number or name): ').strip()
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(scenes):
+                selected_scene = scenes[idx]
+            else:
+                selected_scene = 'default'
+        else:
+            selected_scene = choice if choice else 'default'
 
         while True:
+            # List items in scene
+            scene = vision.process(selected_scene)
+            print(f'\nScene: {scene.description}')
+            print('Objects in scene:')
+            for obj in scene.objects:
+                print(f' - {obj.name} ({obj.object_type}) at ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")')
+
+            print('\nType "quit" at any time to exit\n')
+
             print()
             command = input('You: ').strip()
 
@@ -85,44 +88,19 @@ def main():
                 print('\nGoodbye!')
                 break
 
-            if command.lower() in ['help', 'h', '?']:
-                print("\nHow to use:")
-                print("  1. Optionally specify a scene (or use default)")
-                print("  2. Give a natural language command")
-                print("  3. Review the generated action plan")
-                print("\nExample commands:")
-                print("  • pick up the red block")
-                print("  • move the apple to the left")
-                print("  • look at the yellow ball")
-                continue
-
-            if command.lower() in ['scenes', 'list', 'ls']:
-                print_available_scenes(vision)
-                continue
-
-            if command.lower().startswith('scene '):
-                # Allow user to change scene
-                scene_name = command[6:].strip()
-                current_scene = scene_name if scene_name else None
-                print(f"Scene set to: {current_scene or 'default'}")
-                continue
-
                 # Generate plan for the command
             try:
                 print("\nProcessing...")
-                plan = planner.plan(command, current_scene)
-
-                # Display results
+                plan = planner.plan(command, selected_scene)
                 print_plan_summary(plan)
+                print()
+                command2 = input('Would you like to give another command? (y/n): ')
+                if command2.lower() in ['y', 'yes']:
+                    continue
+                else:
+                    print("\nGoodbye!")
+                    break
 
-                # Ask if user wants to save
-                save = get_input("\nSave to file? (y/n)", "n")
-                if save.lower() in ['y', 'yes']:
-                    filename = get_input("Filename", "plan.json")
-                    output_path = Path(filename)
-                    json_output = plan.model_dump_json(indent=2)
-                    output_path.write_text(json_output)
-                    print(f"✓ Saved to {filename}")
 
             except Exception as e:
                 print(f"\n✗ Error: {e}")
