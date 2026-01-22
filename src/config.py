@@ -1,2 +1,2 @@
-groq_api_key = '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'
+groq_api_key = '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'
 mock_mode = True
