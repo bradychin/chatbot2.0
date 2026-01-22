@@ -1,165 +1,141 @@
-import argparse
 import sys
-import os
+import json
 from pathlib import Path
 
 from src.planner import ActionPlanner
 from src.vision import VisionProcessor
 from src.config import groq_api_key, mock_mode
 
+def print_banner():
+    """Print welcome banner"""
+    print("=" * 60)
+    print("  ROBOT COMMAND SYSTEM - Interactive Mode")
+    print("=" * 60)
+    print()
+
+def print_available_scenes(vision: VisionProcessor):
+    """Print available scenes"""
+    print('\nAvailable scenes:')
+    scenes = vision.list_available_scenes()
+    for scene in scenes:
+        print(f'    - {scene}')
+    print()
+
+def print_plan_summary(plan):
+    """Print summary of the plan"""
+    print("\n" + "-" * 60)
+    print("GENERATED PLAN")
+    print("-" * 60)
+    print(f"Confidence: {plan.confidence:.2f}")
+    if plan.reasoning:
+        print(f"Reasoning: {plan.reasoning}")
+
+    print(f"\nAction sequence ({len(plan.actions)} actions):")
+    for i, action in enumerate(plan.actions, 1):
+        pos_str = ""
+        if action.position:
+            pos_str = f" at ({action.position.x:.2f}, {action.position.y:.2f}, {action.position.z:.2f})"
+        print(f"  {i}. {action.type.upper()}: {action.target}{pos_str}")
+        print(f"     Using: {action.end_effector}")
+    print("-" * 60)
+
+def get_input(prompt: str, default: str = None) -> str:
+    """Get input from user"""
+    if default:
+        user_input = input(f'{prompt} [{default}]: ').strip()
+        return user_input if user_input else default
+    else:
+        return input(f'{prompt}: ').strip()
+
 def main():
+    """Main function"""
+    print_banner()
 
-    """ Main CLI entry point"""
-    parser = argparse.ArgumentParser(
-        description='Generate robot action plans from commands',
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s "pick up the red block" --scene scene1.jpg
-  %(prog)s "move the apple to the right" --scene scene2.jpg --output plan.json
-  %(prog)s "look at the yellow ball" --scene scene3.jpg --verbose
-
-Available mock scenes:
-  scene1.jpg - Table with red and blue blocks
-  scene2.jpg - Kitchen counter with mug and apples  
-  scene3.jpg - Stacked blocks and yellow ball
-  (default)  - Simple scene with one red block
-        """
-    )
-
-    # Required arguments
-    parser.add_argument(
-        'command',
-        type=str,
-        nargs='?',
-        help='Command (eg. "pick up the red block")'
-    )
-
-    # Optional arguments
-    parser.add_argument(
-        '--scene',
-        type=str,
-        default=None,
-        help='Scene name (eg. "scene1.jpg")'
-    )
-
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        default=None,
-        help="Output JSON file path (default: print to stdout)"
-    )
-
-    parser.add_argument(
-        "--api-key",
-        type=str,
-        default=None,
-        help="Groq API key (default: use GROQ_API_KEY environment variable)"
-    )
-
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="llama-3.1-8b-instant",
-        help="LLM model to use (default: llama-3.1-8b-instant)"
-    )
-
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Print detailed information during processing"
-    )
-
-    parser.add_argument(
-        "--list-scenes",
-        action="store_true",
-        help="List available mock scenes and exit"
-    )
-
-    parser.add_argument(
-        "--pretty",
-        action="store_true",
-        help="Pretty-print JSON output (indented)"
-    )
-
-    args = parser.parse_args()
-
-    if args.list_scenes:
-        print('Available mock scenes:')
-        vision = VisionProcessor(mock_mode=mock_mode)
-        for scene_name in vision.list_available_scenes():
-            print(f' - {scene_name}')
-        return 0
-
-    if not args.command:
-        parser.error('Command is required (unless using --list-scenes)')
-
-    api_key = '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'
-
+    api_key = groq_api_key
     if not api_key:
-        print("ERROR: Groq API key required.", file=sys.stderr)
-        print("Set GROQ_API_KEY environment variable or use --api-key", file=sys.stderr)
+        print('ERROR: API key not provided')
         return 1
 
     try:
-        # print verbose info
-        if args.verbose:
-            print(f"Command: {args.command}", file=sys.stderr)
-            print(f"Scene: {args.scene or '(default)'}", file=sys.stderr)
-            print(f"Model: {args.model}", file=sys.stderr)
-            print("Processing...", file=sys.stderr)
-
+        vision = VisionProcessor(mock_mode=mock_mode)
         planner = ActionPlanner(
             vision_mock_mode=mock_mode,
             llm_api_key=api_key,
-            llm_model=args.model,
+            llm_model='llama-3.1-8b-instant'
         )
 
-        # Generate plan
-        plan = planner.plan(args.command, args.scene)
+        print("System initialized successfully!")
+        print("\nCommands:")
+        print("  • Type a robot command (e.g., 'pick up the red block')")
+        print("  • Type 'scenes' to see available scenes")
+        print("  • Type 'help' for more information")
+        print("  • Type 'quit' or 'exit' to quit")
+        print()
 
-        # convert to json
-        if args.pretty:
-            json_output = plan.model_dump_json(indent=2)
-        else:
-            json_output = plan.model_dump_json()
+        current_scene = None
 
-        if args.output:
-            # write to file
-            output_path =  Path(args.output)
-            output_path.write_text(json_output)
-            if args.verbose:
-                print(f"\n✓ Plan saved to: {args.output}", file=sys.stderr)
-                print(f"  Actions: {len(plan.actions)}", file=sys.stderr)
-                print(f"  Confidence: {plan.confidence:.2f}", file=sys.stderr)
+        while True:
+            print()
+            command = input('You: ').strip()
 
-        else:
-            print(json_output)
+            if not command:
+                continue
 
-        if args.verbose:
-            print("\n" + "=" * 50, file=sys.stderr)
-            print("PLAN SUMMARY", file=sys.stderr)
-            print("=" * 50, file=sys.stderr)
-            print(f"Actions: {len(plan.actions)}", file=sys.stderr)
-            print(f"Confidence: {plan.confidence:.2f}", file=sys.stderr)
-            if plan.reasoning:
-                print(f"Reasoning: {plan.reasoning}", file=sys.stderr)
-            print("\nAction sequence:", file=sys.stderr)
-            for i, action in enumerate(plan.actions, 1):
-                print(f"  {i}. {action.type} {action.target}", file=sys.stderr)
+            if command.lower() in ['quit', 'exit', 'q']:
+                print('\nGoodbye!')
+                break
 
+            if command.lower() in ['help', 'h', '?']:
+                print("\nHow to use:")
+                print("  1. Optionally specify a scene (or use default)")
+                print("  2. Give a natural language command")
+                print("  3. Review the generated action plan")
+                print("\nExample commands:")
+                print("  • pick up the red block")
+                print("  • move the apple to the left")
+                print("  • look at the yellow ball")
+                continue
+
+            if command.lower() in ['scenes', 'list', 'ls']:
+                print_available_scenes(vision)
+                continue
+
+            if command.lower().startswith('scene '):
+                # Allow user to change scene
+                scene_name = command[6:].strip()
+                current_scene = scene_name if scene_name else None
+                print(f"Scene set to: {current_scene or 'default'}")
+                continue
+
+                # Generate plan for the command
+            try:
+                print("\nProcessing...")
+                plan = planner.plan(command, current_scene)
+
+                # Display results
+                print_plan_summary(plan)
+
+                # Ask if user wants to save
+                save = get_input("\nSave to file? (y/n)", "n")
+                if save.lower() in ['y', 'yes']:
+                    filename = get_input("Filename", "plan.json")
+                    output_path = Path(filename)
+                    json_output = plan.model_dump_json(indent=2)
+                    output_path.write_text(json_output)
+                    print(f"✓ Saved to {filename}")
+
+            except Exception as e:
+                print(f"\n✗ Error: {e}")
+                print("Please try again with a different command.")
 
         return 0
 
     except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        if args.verbose:
-           import traceback
-
-           traceback.print_exc(file=sys.stderr)
+        print(f"FATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
